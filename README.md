@@ -5,6 +5,3 @@ A personal hobby project — I've been shooting for about a year, just for fun, 
 - **Instagram:** [@Xovriet](https://instagram.com/Xovriet)
 - **Email:** xovriet@gmail.com
 
-## Setup
-
-Drop your photos into an `images/` folder next to `index.html` (see the comment at the top of the file for details on naming), then open `index.html` in a browser.
