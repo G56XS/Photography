@@ -265,7 +265,7 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
 /* ---------------------------------------------------------- */
 .grid{
   column-count:3;
-  column-gap:clamp(0.6rem,1.4vw,1.2rem);
+  column-gap:clamp(1.6rem,3.2vw,3rem);
 }
 .tile{
   position:relative;
@@ -273,7 +273,7 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
   cursor:pointer;
   background:var(--bg-raised);
   break-inside:avoid;
-  margin-bottom:clamp(0.6rem,1.4vw,1.2rem);
+  margin-bottom:clamp(1.6rem,3.2vw,3rem);
   display:block;
 }
 .tile img{
@@ -452,7 +452,7 @@ footer a:hover{ color:var(--accent); }
   <div class="hero-content">
     <p class="eyebrow">Photography — For Fun</p>
     <h1 class="hero-title">Lvens is a study in <em>light</em>,<br>held still.</h1>
-    <p class="hero-sub">A hobbyist eye, one year in. Shooting for the love of it — no clients, no pressure, just the next frame.</p>
+    <p class="hero-sub">A hobbyist eye, one year in. Shot entirely on phone, for the love of it — no clients, no pressure, just the next frame.</p>
   </div>
   <div class="scroll-cue">SCROLL</div>
 </header>
@@ -461,7 +461,7 @@ footer a:hover{ color:var(--accent); }
 <section id="work">
   <div class="section-head reveal">
     <h2>Work</h2>
-    <span class="count" id="workCount">01 — 141</span>
+    <span class="count" id="workCount">01 — 141 · Shot on phone</span>
   </div>
 
   <div class="grid" id="workGrid">
@@ -479,7 +479,7 @@ footer a:hover{ color:var(--accent); }
     <div class="about-text reveal">
       <p class="eyebrow" style="margin-bottom:1rem;">About</p>
       <p>Lvens picked up a camera about a year ago and hasn't put it down since — this is a hobby, not a business, and that's exactly the point.</p>
-      <p>The work is a mix of whatever catches the eye day to day — no formal training, no clients, just learning through trial and error and shooting as much as possible.</p>
+      <p>Every shot here is taken on a phone — no formal training, no clients, just learning through trial and error and shooting as much as possible.</p>
       <p>This gallery is a running collection of favorites from the first year — a way to track progress and keep the motivation going.</p>
       <div class="stat-row">
         <div class="stat"><b>1</b><span>Year shooting</span></div>
@@ -694,7 +694,20 @@ footer a:hover{ color:var(--accent); }
 
   var grid = document.getElementById('workGrid');
   var workCount = document.getElementById('workCount');
-  if (workCount) workCount.textContent = '01 — ' + String(WORK.length).padStart(2, '0');
+  if (workCount) workCount.textContent = '01 — ' + String(WORK.length).padStart(2, '0') + ' · Shot on phone';
+
+  /* Only fetch an image once its tile is about to enter the viewport,
+     instead of firing all 141 requests on page load — this is what
+     makes the grid feel fast. */
+  var lazyObserver = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(!en.isIntersecting) return;
+      var tile = en.target;
+      var img = tile.querySelector('img');
+      loadImg(img, function(){ tile.querySelector('.ph').style.display='none'; });
+      lazyObserver.unobserve(tile);
+    });
+  }, { rootMargin: '800px 0px' }); /* start loading ~800px before it's on screen */
 
   WORK.forEach(function(item, i){
     var num = String(item.n).padStart(3, '0');
@@ -703,12 +716,12 @@ footer a:hover{ color:var(--accent); }
     tile.tabIndex = 0;
     tile.innerHTML =
       '<div class="ph">' + String(i+1).padStart(2,'0') + '</div>' +
-      '<img data-src="images/' + item.file + '" alt="lvens — ' + num + '">' +
+      '<img data-src="images/' + item.file + '" alt="lvens — ' + num + '" loading="lazy" decoding="async">' +
       '<div class="cap"><div class="title">lvens — ' + num + '</div></div>';
     grid.appendChild(tile);
 
     var img = tile.querySelector('img');
-    loadImg(img, function(){ tile.querySelector('.ph').style.display='none'; });
+    lazyObserver.observe(tile);
 
     function open(){
       var full = img.getAttribute('data-src');
