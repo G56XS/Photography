@@ -60,6 +60,15 @@ html{ scroll-behavior:smooth; }
   *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
 }
 
+::selection{ background:var(--accent); color:var(--accent-ink); }
+
+/* refined scrollbar */
+html{ scrollbar-color:var(--faint) transparent; scrollbar-width:thin; }
+::-webkit-scrollbar{ width:10px; }
+::-webkit-scrollbar-track{ background:var(--bg); }
+::-webkit-scrollbar-thumb{ background:var(--rule); border-radius:6px; border:2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover{ background:var(--faint); }
+
 body{
   background:var(--bg);
   color:var(--ink);
@@ -70,8 +79,35 @@ body{
   overflow-x:hidden;
 }
 
+/* subtle film-grain wash over the whole page — ties into the
+   darkroom accent colour and hides any banding on dark gradients */
+body::before{
+  content:'';
+  position:fixed; inset:0; z-index:90;
+  pointer-events:none;
+  opacity:0.035;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 a{ color:inherit; text-decoration:none; }
-img{ display:block; max-width:100%; }
+img{
+  display:block; max-width:100%;
+  -webkit-user-drag:none; user-drag:none;
+  -webkit-touch-callout:none;
+  user-select:none; -webkit-user-select:none;
+}
+
+/* work-image protection: block the browser's native save affordances.
+   (Deters casual right-click/long-press saving — nothing client-side
+   can fully stop screenshots or devtools, but this covers normal use.) */
+.tile, .hero-media, .about-media, .lightbox{
+  -webkit-touch-callout:none;
+}
+.tile img, .hero-media img, .about-media img, .lightbox img{
+  pointer-events:none; /* image itself is inert */
+}
+.tile, .lightbox{ pointer-events:auto; } /* clicks still open/close via the wrapper */
 
 .eyebrow{
   font-family:'IBM Plex Mono',monospace;
@@ -192,9 +228,12 @@ img{ display:block; max-width:100%; }
   width:100%; height:100%; object-fit:cover;
   position:absolute; inset:0; z-index:-2;
   opacity:0;
-  transition:opacity 1.2s var(--ease);
+  filter:blur(14px) saturate(0.9);
+  transform:scale(1.04);
+  transition:opacity 1.3s var(--ease), filter 1.3s var(--ease), transform 1.6s var(--ease);
+  will-change:transform;
 }
-.hero-media img.loaded{ opacity:1; }
+.hero-media img.loaded{ opacity:1; filter:blur(0) saturate(1); transform:scale(1); }
 .hero-media.ph::before{
   content:'HERO — IMAGES/HERO.JPG';
   position:absolute; inset:0; z-index:-2;
@@ -281,10 +320,32 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
   width:100%;
   height:auto;
   opacity:0;
-  transition:opacity 0.8s var(--ease), transform 0.9s var(--ease);
+  filter:blur(10px);
+  transform:scale(1.015);
+  transition:opacity 0.9s var(--ease), filter 0.9s var(--ease), transform 0.9s var(--ease);
 }
-.tile img.loaded{ opacity:1; }
-.tile:hover img.loaded{ transform:scale(1.03); }
+.tile img.loaded{ opacity:1; filter:blur(0); transform:scale(1); }
+.tile:hover img.loaded{ transform:scale(1.035); }
+.tile{ cursor:none; } /* custom view cursor replaces the system pointer */
+.tile .view-cue{
+  position:absolute; z-index:5; left:0; top:0;
+  width:64px; height:64px;
+  margin:-32px 0 0 -32px;
+  border-radius:50%;
+  background:var(--ink);
+  color:var(--accent-ink);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase;
+  opacity:0; transform:scale(0.5);
+  transition:opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  pointer-events:none;
+}
+.tile:hover .view-cue{ opacity:1; transform:scale(1); }
+@media (hover:none){
+  .tile{ cursor:pointer; }
+  .tile .view-cue{ display:none; }
+}
 .tile .ph{
   width:100%;
   aspect-ratio:4/5;
@@ -330,8 +391,8 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
   background:linear-gradient(150deg, #1a1a17, #0c0c0b);
   overflow:hidden;
 }
-.about-media img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity 0.9s var(--ease); }
-.about-media img.loaded{ opacity:1; }
+.about-media img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; filter:blur(12px); transform:scale(1.03); transition:opacity 1s var(--ease), filter 1s var(--ease), transform 1.2s var(--ease); }
+.about-media img.loaded{ opacity:1; filter:blur(0); transform:scale(1); }
 .about-media .ph{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:0.68rem; letter-spacing:0.15em; color:var(--faint); }
 .about-text p{
   max-width:52ch;
@@ -393,6 +454,40 @@ footer a{ color:var(--faint); }
 footer a:hover{ color:var(--accent); }
 
 /* ---------------------------------------------------------- */
+/* PRELOADER — holds the page until every image has decoded,   */
+/* so nothing pops in or flickers once you're scrolling.        */
+/* ---------------------------------------------------------- */
+#preloader{
+  position:fixed; inset:0; z-index:200;
+  background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:1.4rem;
+  transition:opacity 0.7s var(--ease), visibility 0s linear 0.7s;
+}
+#preloader .pl-word{
+  font-family:'Fraunces',serif; font-size:1.3rem; letter-spacing:0.08em; font-weight:500;
+}
+#preloader .pl-bar{
+  width:min(220px,60vw); height:1px;
+  background:var(--rule);
+  position:relative; overflow:hidden;
+}
+#preloader .pl-bar-fill{
+  position:absolute; left:0; top:0; bottom:0; width:0%;
+  background:var(--accent);
+  transition:width 0.25s var(--ease);
+}
+#preloader .pl-pct{
+  font-family:'IBM Plex Mono',monospace; font-size:0.68rem; letter-spacing:0.14em; color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+body.pl-done #preloader{ opacity:0; visibility:hidden; pointer-events:none; }
+/* the page itself fades in as the preloader clears, instead of
+   just appearing, so the very first paint is soft too */
+body:not(.pl-done) #page{ opacity:0; }
+#page{ opacity:1; transition:opacity 0.9s var(--ease); }
+
+/* ---------------------------------------------------------- */
 /* LIGHTBOX */
 /* ---------------------------------------------------------- */
 .lightbox{
@@ -418,6 +513,16 @@ footer a:hover{ color:var(--accent); }
 </style>
 </head>
 <body>
+
+<!-- PRELOADER — page content stays hidden behind this until every
+     image has finished loading, so scrolling never shows a flicker -->
+<div id="preloader" aria-hidden="true">
+  <div class="pl-word">LVENS</div>
+  <div class="pl-bar"><div class="pl-bar-fill" id="plFill"></div></div>
+  <div class="pl-pct" id="plPct">Loading 0%</div>
+</div>
+
+<div id="page">
 
 <!-- TOP BAR -->
 <div class="topbar">
@@ -511,6 +616,8 @@ footer a:hover{ color:var(--accent); }
   <div class="lightbox-cap" id="lbCap"></div>
 </div>
 
+</div><!-- /#page -->
+
 <script>
 (function(){
   document.getElementById('year').textContent = new Date().getFullYear();
@@ -529,21 +636,27 @@ footer a:hover{ color:var(--accent); }
   });
 
   /* ---------- image loader with placeholder fallback ---------- */
-  function loadImg(imgEl, onOk, onFail){
-    var src = imgEl.getAttribute('data-src');
-    if(!src) return;
-    var test = new Image();
-    test.onload = function(){ imgEl.src = src; imgEl.classList.add('loaded'); if(onOk) onOk(); };
-    test.onerror = function(){ if(onFail) onFail(); };
-    test.src = src;
+  /* Preloads a src into the browser's image cache (a plain Image()
+     object, not attached to the page), then hands the *already-cached*
+     src to the real <img>. Because it's cached, the assignment below
+     paints immediately — nothing pops in while you're scrolling. */
+  var imgCache = {};
+  function preload(src){
+    return new Promise(function(resolve){
+      if(!src || imgCache[src]){ resolve(); return; }
+      var test = new Image();
+      test.onload = function(){ imgCache[src] = true; resolve(); };
+      test.onerror = function(){ imgCache[src] = false; resolve(); }; /* don't block the page on one bad file */
+      test.src = src;
+    });
   }
-
-  loadImg(document.getElementById('heroImg'), function(){
-    document.getElementById('heroMedia').classList.remove('ph');
-  });
-
-  var aboutImg = document.querySelector('.about-media img');
-  loadImg(aboutImg, function(){ aboutImg.closest('.about-media').querySelector('.ph').style.display='none'; aboutImg.classList.add('loaded'); });
+  function applyLoaded(imgEl, onOk){
+    var src = imgEl.getAttribute('data-src');
+    if(!src || imgCache[src] === false) return;
+    imgEl.src = src;
+    imgEl.classList.add('loaded');
+    if(onOk) onOk();
+  }
 
   /* ---------- work data — every file from your Lvens folder ---------- */
   var WORK = [
@@ -695,18 +808,9 @@ footer a:hover{ color:var(--accent); }
   var workCount = document.getElementById('workCount');
   if (workCount) workCount.textContent = '01 — ' + String(WORK.length).padStart(2, '0') + ' · Shot on phone';
 
-  /* Only fetch an image once its tile is about to enter the viewport,
-     instead of firing all 141 requests on page load — this is what
-     makes the grid feel fast. */
-  var lazyObserver = new IntersectionObserver(function(entries){
-    entries.forEach(function(en){
-      if(!en.isIntersecting) return;
-      var tile = en.target;
-      var img = tile.querySelector('img');
-      loadImg(img, function(){ tile.querySelector('.ph').style.display='none'; });
-      lazyObserver.unobserve(tile);
-    });
-  }, { rootMargin: '800px 0px' }); /* start loading ~800px before it's on screen */
+  var heroImg = document.getElementById('heroImg');
+  var aboutImg = document.querySelector('.about-media img');
+  var tiles = [];
 
   WORK.forEach(function(item, i){
     var num = String(item.n).padStart(3, '0');
@@ -715,14 +819,24 @@ footer a:hover{ color:var(--accent); }
     tile.tabIndex = 0;
     tile.innerHTML =
       '<div class="ph">' + String(i+1).padStart(2,'0') + '</div>' +
-      '<img data-src="images/' + item.file + '" alt="lvens — ' + num + '" loading="lazy" decoding="async">' +
-      '<div class="cap"><div class="title">lvens — ' + num + '</div></div>';
+      '<img data-src="images/' + item.file + '" alt="lvens — ' + num + '" decoding="async" draggable="false">' +
+      '<div class="cap"><div class="title">lvens — ' + num + '</div></div>' +
+      '<div class="view-cue">View</div>';
     grid.appendChild(tile);
 
     var img = tile.querySelector('img');
-    lazyObserver.observe(tile);
+    tiles.push(tile);
+
+    /* custom "view" cue follows the cursor inside the tile */
+    var cue = tile.querySelector('.view-cue');
+    tile.addEventListener('mousemove', function(e){
+      var r = tile.getBoundingClientRect();
+      cue.style.left = (e.clientX - r.left) + 'px';
+      cue.style.top = (e.clientY - r.top) + 'px';
+    });
 
     function open(){
+      if(imgCache[img.getAttribute('data-src')] === false) return; /* broken file, nothing to show */
       var full = img.getAttribute('data-src');
       lbImg.src = full;
       lbCap.textContent = 'lvens — ' + num;
@@ -730,6 +844,52 @@ footer a:hover{ color:var(--accent); }
     }
     tile.addEventListener('click', open);
     tile.addEventListener('keydown', function(e){ if(e.key === 'Enter') open(); });
+  });
+
+  /* ---------- preload everything up front, then reveal all at once ----------
+     This is the "keep loading until it's all ready" behaviour: the page
+     stays behind the preloader screen (with a live progress bar) until
+     the hero, the about portrait, and all 141 grid photos have finished
+     loading — so once you can scroll, nothing pops in or flickers. */
+  var allSources = [heroImg.getAttribute('data-src'), aboutImg.getAttribute('data-src')]
+    .concat(WORK.map(function(item){ return 'images/' + item.file; }));
+
+  var plFill = document.getElementById('plFill');
+  var plPct = document.getElementById('plPct');
+  var doneCount = 0;
+  var total = allSources.length;
+
+  function bumpProgress(){
+    doneCount++;
+    var pct = Math.round((doneCount / total) * 100);
+    if(plFill) plFill.style.width = pct + '%';
+    if(plPct) plPct.textContent = 'Loading ' + pct + '%';
+  }
+
+  Promise.all(allSources.map(function(src){
+    return preload(src).then(bumpProgress);
+  })).then(function(){
+    /* reveal hero + about */
+    applyLoaded(heroImg, function(){ document.getElementById('heroMedia').classList.remove('ph'); });
+    applyLoaded(aboutImg, function(){ aboutImg.closest('.about-media').querySelector('.ph').style.display='none'; });
+    /* reveal every grid tile — all already sitting in the image cache,
+       so this is a paint, not a fetch */
+    tiles.forEach(function(tile){
+      var img = tile.querySelector('img');
+      applyLoaded(img, function(){ tile.querySelector('.ph').style.display='none'; });
+    });
+    document.body.classList.add('pl-done');
+  });
+
+  /* ---------- image save/right-click protection ---------- */
+  /* Deters casual "save image as" / drag-out-to-desktop / long-press-save.
+     No client-side trick can block screenshots or devtools — this just
+     removes the easy, accidental paths. */
+  document.addEventListener('contextmenu', function(e){
+    if(e.target.tagName === 'IMG') e.preventDefault();
+  });
+  document.addEventListener('dragstart', function(e){
+    if(e.target.tagName === 'IMG') e.preventDefault();
   });
 
   /* ---------- lightbox ---------- */
@@ -746,6 +906,7 @@ footer a:hover{ color:var(--accent); }
     entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
   }, { threshold: 0.15 });
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
 })();
 </script>
 </body>
