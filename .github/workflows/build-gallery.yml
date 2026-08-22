@@ -1,0 +1,46 @@
+name: Build photo gallery
+
+# Runs automatically whenever you push new/removed photos to images/.
+# It generates images/manifest.json and the webp thumbnails, then commits
+# them back to the repo -- so all you ever have to do is drop photos into
+# images/ and push. GitHub Pages then just serves the result, same as always.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "images/*.jpg"
+      - "images/*.jpeg"
+      - "images/*.png"
+      - "images/*.JPG"
+      - "images/*.JPEG"
+      - "images/*.PNG"
+      - "images/*.webp"
+  workflow_dispatch:      # lets you trigger it manually from the Actions tab too
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Pillow
+        run: pip install pillow
+
+      - name: Generate manifest + thumbnails
+        run: python build_manifest.py
+
+      - name: Commit generated files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add images/manifest.json images/thumbs
+          git diff --staged --quiet || git commit -m "Auto-update photo gallery [skip ci]"
+          git push

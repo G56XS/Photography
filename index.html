@@ -21,30 +21,31 @@
   ============================================================
   HOW TO ADD YOUR OWN PHOTOS
   ============================================================
-  This file expects an "images" folder sitting next to it, with
-  all 141 photos from your "lvens" folder copied in as-is
-  (original filenames, e.g. lvens_DacwNtDMF7u.jpg). The full
-  file list is baked into the WORK array in the script below, so
-  you don't need to rename anything — just copy the files over:
+  Drop any number of photos straight into the "images" folder —
+  any filenames, no renaming, no editing this file. Then run
+  build_manifest.py (double-click build_manifest.bat on Windows,
+  or build_manifest.command on Mac) once. It scans images/,
+  writes images/manifest.json, and generates a compressed webp
+  thumbnail for each photo in images/thumbs/ for the grid. The
+  page reads that manifest at load time and builds the gallery
+  automatically — run the script again any time you add or
+  remove photos.
 
-    /html
-      index.html
-      /images
-        lvens_DacwNtDMF7u.jpg
-        lvens_DaDUVuDwQXe.jpg
-        ... (all 141 files, unrenamed)
+  hero.jpg and about.jpg are the two feature images (top banner
+  + about-section portrait) and are skipped by the script — pick
+  your own and save them under those exact names.
 
-  The hero and about images still use the generic names hero.jpg
-  and about.jpg — pick your two favorite shots from the set and
-  save copies under those names (or edit heroImg / about-media
-  data-src below to point at one of the real filenames instead).
-  Until real files are present, each slot shows a soft placeholder
-  tile with its index number, so the layout still looks intentional.
+  Also drop a music.mp3 next to index.html for the background
+  music that plays on load.
 
-  If you're serving this with the nginx build you uploaded, copy
-  this whole folder's contents into nginx-1.28.0/html/, replacing
-  the default index.html, then run nginx.exe and visit
-  http://localhost/
+  On GitHub Pages: don't run build_manifest.py yourself — just
+  push photos to images/ and .github/workflows/build-gallery.yml
+  runs it for you automatically and commits the results.
+
+  If you're serving this locally with the nginx build you
+  uploaded, copy this whole folder's contents into
+  nginx-1.28.0/html/, replacing the default index.html, then run
+  nginx.exe and visit http://localhost/
   ============================================================
 -->
 
@@ -95,7 +96,6 @@ html.has-cursor, html.has-cursor a, html.has-cursor button, html.has-cursor .til
 }
 #cursor-dot.show{ opacity:1; }
 #cursor-dot.on-link{ width:30px; height:30px; background:rgba(210,210,205,0.7); }
-#cursor-dot.on-tile{ opacity:0; } /* the tile's own "View" cue takes over here */
 #cursor-dot.down{ width:14px; height:14px; }
 @media (hover:none), (pointer:coarse){
   #cursor-dot{ display:none !important; }
@@ -339,19 +339,24 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
 .reveal.in{ opacity:1; transform:translateY(0); }
 
 /* ---------------------------------------------------------- */
-/* WORK GRID */
+/* WORK GRID — a true grid (not CSS multi-column), so photos    */
+/* flow left-to-right, row by row, instead of filling a whole   */
+/* column before moving to the next. Each tile's height is      */
+/* computed from its real aspect ratio (from manifest.json) and */
+/* set as a row-span before the photo loads, so nothing reflows */
+/* or flickers once the image appears.                          */
 /* ---------------------------------------------------------- */
 .grid{
-  column-count:3;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
   column-gap:clamp(1.6rem,3.2vw,3rem);
+  grid-auto-rows:1px;
 }
 .tile{
   position:relative;
   overflow:hidden;
   cursor:pointer;
   background:var(--bg-raised);
-  break-inside:avoid;
-  margin-bottom:clamp(1.6rem,3.2vw,3rem);
   display:block;
 }
 .tile img{
@@ -365,29 +370,10 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
 }
 .tile img.loaded{ opacity:1; filter:blur(0); transform:scale(1); }
 .tile:hover img.loaded{ transform:scale(1.035); }
-.tile{ cursor:none; } /* custom view cursor replaces the system pointer */
-.tile .view-cue{
-  position:absolute; z-index:5; left:0; top:0;
-  width:64px; height:64px;
-  margin:-32px 0 0 -32px;
-  border-radius:50%;
-  background:var(--ink);
-  color:var(--accent-ink);
-  display:flex; align-items:center; justify-content:center;
-  font-family:'IBM Plex Mono',monospace;
-  font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase;
-  opacity:0; transform:scale(0.5);
-  transition:opacity 0.25s var(--ease), transform 0.25s var(--ease);
-  pointer-events:none;
-}
-.tile:hover .view-cue{ opacity:1; transform:scale(1); }
-@media (hover:none){
-  .tile{ cursor:pointer; }
-  .tile .view-cue{ display:none; }
-}
 .tile .ph{
   width:100%;
-  aspect-ratio:4/5;
+  height:100%;
+  aspect-ratio:var(--ar, 4/5);
   display:flex; align-items:center; justify-content:center;
   font-family:'Fraunces',serif; font-size:2.4rem; color:var(--faint);
   background:linear-gradient(150deg, #1a1a17, #0c0c0b);
@@ -409,10 +395,10 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
 }
 
 @media (max-width:900px){
-  .grid{ column-count:2; }
+  .grid{ grid-template-columns:repeat(2,1fr); }
 }
 @media (max-width:560px){
-  .grid{ column-count:1; }
+  .grid{ grid-template-columns:repeat(1,1fr); }
 }
 
 /* ---------------------------------------------------------- */
@@ -624,7 +610,7 @@ body:not(.pl-done) #page{ opacity:0; }
   </div>
 
   <div class="grid" id="workGrid">
-    <!-- tiles are generated by JS from the WORK array below -->
+    <!-- tiles are generated by JS from images/manifest.json -->
   </div>
 </section>
 
@@ -675,11 +661,42 @@ body:not(.pl-done) #page{ opacity:0; }
 <!-- CUSTOM CURSOR — a grey blob that follows the pointer (desktop only) -->
 <div id="cursor-dot" aria-hidden="true"></div>
 
+<!-- BACKGROUND MUSIC — no mute control by request. Browsers block audio
+     with sound from autoplaying until the visitor interacts with the page
+     at least once (tab, click, scroll key, etc.) — see the script below,
+     which starts playback the instant that happens if the initial
+     autoplay attempt was blocked. -->
+<audio id="bgm" src="music.mp3" loop preload="auto"></audio>
+
 </div><!-- /#page -->
 
 <script>
 (function(){
   document.getElementById('year').textContent = new Date().getFullYear();
+
+  /* ---------- background music ----------
+     Browsers block audio-with-sound from autoplaying until the visitor has
+     interacted with the page at least once — that's a browser policy, not
+     something a site can opt out of. So: try to play immediately, and if
+     that's blocked, start it on the very first click/key/touch/scroll. */
+  var bgm = document.getElementById('bgm');
+  if(bgm){
+    var tryPlay = function(){ return bgm.play(); };
+    var p = tryPlay();
+    if(p && p.catch){
+      p.catch(function(){
+        var start = function(){
+          tryPlay();
+          ['pointerdown','keydown','touchstart','wheel'].forEach(function(evt){
+            document.removeEventListener(evt, start);
+          });
+        };
+        ['pointerdown','keydown','touchstart','wheel'].forEach(function(evt){
+          document.addEventListener(evt, start, { once: true, passive: true });
+        });
+      });
+    }
+  }
 
   /* ---------- menu toggle ---------- */
   var menuBtn = document.getElementById('menuBtn');
@@ -718,8 +735,8 @@ body:not(.pl-done) #page{ opacity:0; }
       if(!started){ dx = x; dy = y; started = true; }
       dot.classList.add('show');
       var el = e.target;
-      dot.classList.toggle('on-tile', !!(el.closest && el.closest('.tile')));
-      dot.classList.toggle('on-link', !!(el.closest && el.closest('a, button') && !el.closest('.tile')));
+      var interactive = !!(el.closest && el.closest('.tile, a, button'));
+      dot.classList.toggle('on-link', interactive);
     });
     document.addEventListener('mousedown', function(){ dot.classList.add('down'); });
     document.addEventListener('mouseup', function(){ dot.classList.remove('down'); });
@@ -750,179 +767,61 @@ body:not(.pl-done) #page{ opacity:0; }
     if(onOk) onOk();
   }
 
-  /* ---------- work data — every file from your Lvens folder ---------- */
-  var WORK = [
-    { file: "lvens_DacwNtDMF7u.jpg", n: 1 },
-    { file: "lvens_DaDUVuDwQXe.jpg", n: 2 },
-    { file: "lvens_DahNQBRhy0x.jpg", n: 3 },
-    { file: "lvens_Daj9bophAxy.jpg", n: 4 },
-    { file: "lvens_DawfVoaB4YW.jpg", n: 5 },
-    { file: "lvens_DbEBZF9hcLS.jpg", n: 6 },
-    { file: "lvens_DbtIx40p2h9.jpg", n: 7 },
-    { file: "lvens_DbtJ4hhp-IV.jpg", n: 8 },
-    { file: "lvens_DbtJjTdPy2I.jpg", n: 9 },
-    { file: "lvens_DbtJtLFPaLb.jpg", n: 10 },
-    { file: "lvens_DbtJXqfNDsp.jpg", n: 11 },
-    { file: "lvens_DbtKMqEh2kv.jpg", n: 12 },
-    { file: "lvens_DbvmYmCtM0M.jpg", n: 13 },
-    { file: "lvens_Dbxoa_ltwaF.jpg", n: 14 },
-    { file: "lvens_Db_ECSIu91J.jpg", n: 15 },
-    { file: "lvens_DOWM88Skhqq.jpg", n: 16 },
-    { file: "lvens_DOWN2xqkrzM.jpg", n: 17 },
-    { file: "lvens_DOWNb7bkg8W.jpg", n: 18 },
-    { file: "lvens_DOWNgKqEiZ2.jpg", n: 19 },
-    { file: "lvens_DOWNHE6klvP.jpg", n: 20 },
-    { file: "lvens_DOWNNyxEs9X.jpg", n: 21 },
-    { file: "lvens_DOWNUY9Emzi.jpg", n: 22 },
-    { file: "lvens_DOWNy2Xkhvm_1.jpg", n: 23 },
-    { file: "lvens_DOWNy2Xkhvm_2.jpg", n: 24 },
-    { file: "lvens_DOWNy2Xkhvm_3.jpg", n: 25 },
-    { file: "lvens_DOWN_-VkmEI_1.jpg", n: 26 },
-    { file: "lvens_DOWN_-VkmEI_2.jpg", n: 27 },
-    { file: "lvens_DOWO23OkoG4.jpg", n: 28 },
-    { file: "lvens_DOWODa3kovX.jpg", n: 29 },
-    { file: "lvens_DOWOoK9kvSd.jpg", n: 30 },
-    { file: "lvens_DOWOSTBkmyv_1.jpg", n: 31 },
-    { file: "lvens_DOWOSTBkmyv_2.jpg", n: 32 },
-    { file: "lvens_DOWOSTBkmyv_3.jpg", n: 33 },
-    { file: "lvens_DOWOSTBkmyv_4.jpg", n: 34 },
-    { file: "lvens_DOWOYHWEscP.jpg", n: 35 },
-    { file: "lvens_DOWP07iEqpO.jpg", n: 36 },
-    { file: "lvens_DOWPaevkny2.jpg", n: 37 },
-    { file: "lvens_DOWPC-yEqVa.jpg", n: 38 },
-    { file: "lvens_DOWPizVEnaF_1.jpg", n: 39 },
-    { file: "lvens_DOWPizVEnaF_2.jpg", n: 40 },
-    { file: "lvens_DOWPld8EraU.jpg", n: 41 },
-    { file: "lvens_DOWPNuCkgP9.jpg", n: 42 },
-    { file: "lvens_DOWPsL7Ehdx.jpg", n: 43 },
-    { file: "lvens_DOWPV1Ckq3g.jpg", n: 44 },
-    { file: "lvens_DOWPw5AElCG.jpg", n: 45 },
-    { file: "lvens_DOWQ1lEEjwW.jpg", n: 46 },
-    { file: "lvens_DOWQ8dRErGf.jpg", n: 47 },
-    { file: "lvens_DOWQD8VErg2_1.jpg", n: 48 },
-    { file: "lvens_DOWQD8VErg2_2.jpg", n: 49 },
-    { file: "lvens_DOWQD8VErg2_3.jpg", n: 50 },
-    { file: "lvens_DOWQD8VErg2_4.jpg", n: 51 },
-    { file: "lvens_DOWQD8VErg2_5.jpg", n: 52 },
-    { file: "lvens_DOWQeKXEsbd.jpg", n: 53 },
-    { file: "lvens_DOWQHKfEvmC.jpg", n: 54 },
-    { file: "lvens_DOWQkRREoHf.jpg", n: 55 },
-    { file: "lvens_DOWRbxFksdh.jpg", n: 56 },
-    { file: "lvens_DOWRGu9kptP.jpg", n: 57 },
-    { file: "lvens_DOWROzAEu2s.jpg", n: 58 },
-    { file: "lvens_DQtyDW2kg8L.jpg", n: 59 },
-    { file: "lvens_DQtyRtvkowL.jpg", n: 60 },
-    { file: "lvens_DQtzgMaEqx-.jpg", n: 61 },
-    { file: "lvens_DSGuE9ekk09.jpg", n: 62 },
-    { file: "lvens_DSGuSI3kkSC.jpg", n: 63 },
-    { file: "lvens_DSKxPDCEikz.jpg", n: 64 },
-    { file: "lvens_DTKBci8koiF.jpg", n: 65 },
-    { file: "lvens_DTKBGmLktZc.jpg", n: 66 },
-    { file: "lvens_DTKBme5EuNG.jpg", n: 67 },
-    { file: "lvens_DTKCBrvkmpr.jpg", n: 68 },
-    { file: "lvens_DTKlAWUkra_.jpg", n: 69 },
-    { file: "lvens_DTKpJ0PklHM.jpg", n: 70 },
-    { file: "lvens_DTncgGWEsmf.jpg", n: 71 },
-    { file: "lvens_DTnS3eREjDN.jpg", n: 72 },
-    { file: "lvens_DTnSpb3Etk0.jpg", n: 73 },
-    { file: "lvens_DTnWkdxkhGF.jpg", n: 74 },
-    { file: "lvens_DTnWr3ZkjJD.jpg", n: 75 },
-    { file: "lvens_DTr9pwDEq3a.jpg", n: 76 },
-    { file: "lvens_DUBgyKCEscx.jpg", n: 77 },
-    { file: "lvens_DUBhtAlEiRN.jpg", n: 78 },
-    { file: "lvens_DUBhZ1tkr9B.jpg", n: 79 },
-    { file: "lvens_DUBi6rwEp5T.jpg", n: 80 },
-    { file: "lvens_DUBii_okmGD.jpg", n: 81 },
-    { file: "lvens_DUBiKR9kulE.jpg", n: 82 },
-    { file: "lvens_DUBjseCEl5g.jpg", n: 83 },
-    { file: "lvens_DUBjSkOEoWQ.jpg", n: 84 },
-    { file: "lvens_DUBkT_ZEk5H.jpg", n: 85 },
-    { file: "lvens_DUBlDQkEk4N.jpg", n: 86 },
-    { file: "lvens_DUBlOi5Egc_.jpg", n: 87 },
-    { file: "lvens_DUBmKnEkreg.jpg", n: 88 },
-    { file: "lvens_DUBmSCYkgys.jpg", n: 89 },
-    { file: "lvens_DUCs8DcEqJA.jpg", n: 90 },
-    { file: "lvens_DUCsYsWkg48.jpg", n: 91 },
-    { file: "lvens_DUCtuh6EtzJ.jpg", n: 92 },
-    { file: "lvens_DUFr9IdEh5h.jpg", n: 93 },
-    { file: "lvens_DUFrwrikmuD.jpg", n: 94 },
-    { file: "lvens_DUn0OspEo2e.jpg", n: 95 },
-    { file: "lvens_DUnzX_GEgnv.jpg", n: 96 },
-    { file: "lvens_DUQjFa0ktIe.jpg", n: 97 },
-    { file: "lvens_DUyEYffEpTU.jpg", n: 98 },
-    { file: "lvens_DVGsH_MkiDC.jpg", n: 99 },
-    { file: "lvens_DVljMKrga_X.jpg", n: 100 },
-    { file: "lvens_DVtVKp0AdTV.jpg", n: 101 },
-    { file: "lvens_DVWNpHDktJu.jpg", n: 102 },
-    { file: "lvens_DV_ItzwD-aD.jpg", n: 103 },
-    { file: "lvens_DWGkGHuia6H.jpg", n: 104 },
-    { file: "lvens_DWvDGGoAduK.jpg", n: 105 },
-    { file: "lvens_DWvZ8jOmppO.jpg", n: 106 },
-    { file: "lvens_DWwgrPsgT8D.jpg", n: 107 },
-    { file: "lvens_DX2BOkxAWTW.jpg", n: 108 },
-    { file: "lvens_DXgR4rrjMW8.jpg", n: 109 },
-    { file: "lvens_DXhfXffCXJh.jpg", n: 110 },
-    { file: "lvens_DXjgfwYFEhJ_1.jpg", n: 111 },
-    { file: "lvens_DXjgfwYFEhJ_2.jpg", n: 112 },
-    { file: "lvens_DXjLKFHlLFk_1.jpg", n: 113 },
-    { file: "lvens_DXjLKFHlLFk_2.jpg", n: 114 },
-    { file: "lvens_DXWbPnQjUA_.jpg", n: 115 },
-    { file: "lvens_DXyXFJwE6wl.jpg", n: 116 },
-    { file: "lvens_DXzBuNcD4EQ.jpg", n: 117 },
-    { file: "lvens_DXzG5REjIDK.jpg", n: 118 },
-    { file: "lvens_DY96wE8yPJz.jpg", n: 119 },
-    { file: "lvens_DYEs8vYiY65.jpg", n: 120 },
-    { file: "lvens_DYFNWlkjO9w.jpg", n: 121 },
-    { file: "lvens_DYj8zU0Npfz.jpg", n: 122 },
-    { file: "lvens_DYjwIPJsNaS.jpg", n: 123 },
-    { file: "lvens_DYlxaKotFQ0.jpg", n: 124 },
-    { file: "lvens_DYmcoXoB63J.jpg", n: 125 },
-    { file: "lvens_DYOa1CkOZnn.jpg", n: 126 },
-    { file: "lvens_DYOcMwzpPLM.jpg", n: 127 },
-    { file: "lvens_DYonNBJJZZQ.jpg", n: 128 },
-    { file: "lvens_DYopF5dsRL3.jpg", n: 129 },
-    { file: "lvens_DYPoT2ESNXF.jpg", n: 130 },
-    { file: "lvens_DYU43WuhlZq.jpg", n: 131 },
-    { file: "lvens_DYU4y39O8Y2.jpg", n: 132 },
-    { file: "lvens_DYuW0QQPOE7.jpg", n: 133 },
-    { file: "lvens_DYz4uWvB-YV.jpg", n: 134 },
-    { file: "lvens_DZF7_ZDhvLR.jpg", n: 135 },
-    { file: "lvens_DZF9EQcBG-3.jpg", n: 136 },
-    { file: "lvens_DZVZAYRB3ZN.jpg", n: 137 },
-    { file: "lvens_DZVZgg4hsFl.jpg", n: 138 },
-    { file: "lvens_DZVZHltBq_k.jpg", n: 139 },
-    { file: "lvens_DZWAXkgh2ce.jpg", n: 140 },
-    { file: "lvens_DZX0T8eBlye.jpg", n: 141 }
-
-  ];
-
+  /* ---------- gallery data — auto-discovered, no filenames to maintain ----------
+     The grid is built from images/manifest.json, which lists every photo in
+     images/ along with its real width/height. Run build_manifest.py any time
+     you add or remove photos and this list updates itself — nothing here is
+     hardcoded. Each entry's "thumb" is a compressed webp used in the grid;
+     "file" is the original full-quality photo, used only in the lightbox. */
   var grid = document.getElementById('workGrid');
   var workCount = document.getElementById('workCount');
-  if (workCount) workCount.textContent = '01 — ' + String(WORK.length).padStart(2, '0') + ' · Shot on phone';
-
   var heroImg = document.getElementById('heroImg');
   var aboutImg = document.querySelector('.about-media img');
   var tiles = [];
 
-  WORK.forEach(function(item, i){
-    var num = String(item.n).padStart(3, '0');
+  /* ---------- masonry via CSS Grid, filled row by row (not column by column) ----------
+     Each tile's row-span is computed from its real aspect ratio before any
+     image loads, so the layout never reflows/flickers once photos appear. */
+  function gridCols(){
+    if(window.innerWidth <= 560) return 1;
+    if(window.innerWidth <= 900) return 2;
+    return 3;
+  }
+  function layoutGrid(){
+    if(!tiles.length) return;
+    var cols = gridCols();
+    var styles = getComputedStyle(grid);
+    var gapPx = parseFloat(styles.columnGap) || 0;
+    var containerWidth = grid.clientWidth;
+    var colWidth = (containerWidth - gapPx * (cols - 1)) / cols;
+    tiles.forEach(function(t){
+      var renderedHeight = colWidth * (t.h / t.w);
+      var span = Math.ceil(renderedHeight + gapPx);
+      t.el.style.gridRowEnd = 'span ' + span;
+    });
+  }
+  var layoutTimer;
+  window.addEventListener('resize', function(){
+    clearTimeout(layoutTimer);
+    layoutTimer = setTimeout(layoutGrid, 120);
+  });
+
+  function buildTile(item, i){
     var tile = document.createElement('div');
     tile.className = 'tile';
     tile.tabIndex = 0;
     tile.setAttribute('role', 'button');
-    tile.setAttribute('aria-label', 'View photo lvens — ' + num);
+    tile.style.setProperty('--ar', item.w + '/' + item.h);
+    tile.setAttribute('aria-label', 'View photo ' + (i + 1));
     tile.innerHTML =
-      '<div class="ph">' + String(i+1).padStart(2,'0') + '</div>' +
-      '<img data-src="images/' + item.file + '" alt="lvens — ' + num + '" decoding="async" draggable="false">' +
-      '<div class="cap"><div class="title">lvens — ' + num + '</div></div>' +
-      '<div class="view-cue">View</div>';
+      '<div class="ph"></div>' +
+      '<img data-src="' + item.thumb + '" data-full="' + item.full + '" alt="Photo ' + (i + 1) + '" decoding="async" draggable="false">' +
+      '<div class="cap"><div class="title">Photo — ' + String(i + 1).padStart(3, '0') + '</div></div>';
     grid.appendChild(tile);
 
     var img = tile.querySelector('img');
-    /* Native lazy-loading: the browser only fetches each grid photo as it
-       nears the viewport, instead of every one of the 141 shots up front.
-       The blur-up transition still fires per image via its own load event,
-       so the page feels the same, it just doesn't wait on ~35MB to start. */
+    /* Native lazy-loading: the browser only fetches each grid thumbnail as
+       it nears the viewport, instead of every photo up front. */
     img.loading = i < 6 ? 'eager' : 'lazy';
     img.addEventListener('load', function(){
       img.classList.add('loaded');
@@ -936,40 +835,21 @@ body:not(.pl-done) #page{ opacity:0; }
     });
     img.src = img.getAttribute('data-src');
 
-    tiles.push({ el: tile, img: img, num: num });
-
-    /* custom "view" cue follows the cursor inside the tile */
-    var cue = tile.querySelector('.view-cue');
-    tile.addEventListener('mousemove', function(e){
-      var r = tile.getBoundingClientRect();
-      cue.style.left = (e.clientX - r.left) + 'px';
-      cue.style.top = (e.clientY - r.top) + 'px';
-    });
+    tiles.push({ el: tile, img: img, w: item.w, h: item.h, full: item.full });
 
     function tryOpen(){ if(!tile.classList.contains('broken')) openAt(i); }
     tile.addEventListener('click', tryOpen);
     tile.addEventListener('keydown', function(e){
       if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); tryOpen(); }
     });
-  });
+  }
 
   /* ---------- preload the hero + about shot, then reveal the page ----------
-     Only these two critical images hold the preloader now — the 141 grid
-     photos lazy-load naturally as you scroll (see above), so the site is
-     interactive almost immediately instead of waiting on every photo. */
-  var criticalSources = [heroImg.getAttribute('data-src'), aboutImg.getAttribute('data-src')];
-
+     Only these two critical images hold the preloader — every grid photo
+     lazy-loads naturally as you scroll, so the site is interactive almost
+     immediately instead of waiting on the whole album. */
   var plFill = document.getElementById('plFill');
   var plPct = document.getElementById('plPct');
-  var doneCount = 0;
-  var total = criticalSources.length;
-
-  function bumpProgress(){
-    doneCount++;
-    var pct = Math.round((doneCount / total) * 100);
-    if(plFill) plFill.style.width = pct + '%';
-    if(plPct) plPct.textContent = 'Loading ' + pct + '%';
-  }
 
   function reveal(){
     if(document.body.classList.contains('pl-done')) return;
@@ -978,13 +858,38 @@ body:not(.pl-done) #page{ opacity:0; }
     document.body.classList.add('pl-done');
   }
 
-  Promise.all(criticalSources.map(function(src){
-    return preload(src).then(bumpProgress);
-  })).then(reveal);
+  fetch('images/manifest.json', { cache: 'no-store' })
+    .then(function(r){
+      if(!r.ok) throw new Error('no manifest');
+      return r.json();
+    })
+    .then(function(list){
+      if (workCount) workCount.textContent = '01 — ' + String(list.length).padStart(2, '0') + ' · Shot on phone';
+      list.forEach(function(item, i){
+        buildTile({ thumb: 'images/' + item.thumb, full: 'images/' + item.file, w: item.w, h: item.h }, i);
+      });
+      layoutGrid();
 
-  /* safety net: never let a slow/broken hero shot trap someone behind
-     the preloader indefinitely */
-  setTimeout(reveal, 4000);
+      var criticalSources = [heroImg.getAttribute('data-src'), aboutImg.getAttribute('data-src')];
+      var doneCount = 0, total = criticalSources.length;
+      function bumpProgress(){
+        doneCount++;
+        var pct = Math.round((doneCount / total) * 100);
+        if(plFill) plFill.style.width = pct + '%';
+        if(plPct) plPct.textContent = 'Loading ' + pct + '%';
+      }
+      Promise.all(criticalSources.map(function(src){ return preload(src).then(bumpProgress); })).then(reveal);
+      setTimeout(reveal, 4000);
+    })
+    .catch(function(){
+      /* No manifest yet — most likely build_manifest.py hasn't been run.
+         Fail visibly instead of silently showing an empty gallery. */
+      if(grid) grid.innerHTML =
+        '<p style="font-family:\'IBM Plex Mono\',monospace;font-size:0.78rem;color:var(--muted);grid-column:1/-1;">' +
+        'Couldn\u2019t find images/manifest.json — run build_manifest.py (see README) after adding photos to images/, then refresh.</p>';
+      if (workCount) workCount.textContent = '';
+      reveal();
+    });
 
   /* ---------- image save/right-click protection ---------- */
   /* Deters casual "save image as" / drag-out-to-desktop / long-press-save.
@@ -1011,10 +916,10 @@ body:not(.pl-done) #page{ opacity:0; }
     if(!tiles.length) return;
     currentIndex = (i + tiles.length) % tiles.length;
     var t = tiles[currentIndex];
-    var src = t.img.getAttribute('data-src');
+    var src = t.full;
     lastFocused = document.activeElement;
     lbImg.src = src;
-    lbCap.innerHTML = 'lvens — ' + t.num + '<span class="lb-count">' + (currentIndex + 1) + ' / ' + tiles.length + '</span>';
+    lbCap.innerHTML = 'Photo — ' + String(currentIndex + 1).padStart(3, '0') + '<span class="lb-count">' + (currentIndex + 1) + ' / ' + tiles.length + '</span>';
     lightbox.classList.add('on');
     lightbox.setAttribute('aria-hidden', 'false');
     lbClose.focus();
