@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>lvens — Photography</title>
 <meta name="description" content="lvens — personal photography hobby gallery, shot on phone.">
+<meta name="theme-color" content="#0c0c0b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%236d8f80'/%3E%3C/svg%3E">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Lvens — Photography">
+<meta property="og:description" content="A hobbyist eye, one year in. Shot on phone, still learning as I go.">
+<meta property="og:image" content="images/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Lvens — Photography">
+<meta name="twitter:description" content="A hobbyist eye, one year in. Shot on phone, still learning as I go.">
+<meta name="twitter:image" content="images/hero.jpg">
 
 <!--
   ============================================================
@@ -61,6 +72,34 @@ html{ scroll-behavior:smooth; }
 }
 
 ::selection{ background:var(--accent); color:var(--accent-ink); }
+
+/* ---------------------------------------------------------- */
+/* CUSTOM CURSOR — a soft grey blob (~0.5cm) that trails the   */
+/* pointer. Only enabled on fine-pointer devices with real     */
+/* hover (desktop/trackpad); touch devices keep the system     */
+/* pointer entirely untouched.                                  */
+/* ---------------------------------------------------------- */
+html.has-cursor, html.has-cursor a, html.has-cursor button, html.has-cursor .tile{
+  cursor:none;
+}
+#cursor-dot{
+  position:fixed; top:0; left:0; z-index:9999;
+  width:19px; height:19px;
+  margin:0; border-radius:50%;
+  background:rgba(190,190,186,0.55);
+  box-shadow:0 0 0 1px rgba(241,237,227,0.08);
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .25s var(--ease), width .25s var(--ease), height .25s var(--ease), background .25s var(--ease);
+}
+#cursor-dot.show{ opacity:1; }
+#cursor-dot.on-link{ width:30px; height:30px; background:rgba(210,210,205,0.7); }
+#cursor-dot.on-tile{ opacity:0; } /* the tile's own "View" cue takes over here */
+#cursor-dot.down{ width:14px; height:14px; }
+@media (hover:none), (pointer:coarse){
+  #cursor-dot{ display:none !important; }
+}
 
 /* refined scrollbar */
 html{ scrollbar-color:var(--faint) transparent; scrollbar-width:thin; }
@@ -510,6 +549,21 @@ body:not(.pl-done) #page{ opacity:0; }
   text-align:center;
   font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:var(--muted); letter-spacing:0.06em;
 }
+.lightbox-cap .lb-count{ color:var(--faint); margin-left:0.6em; }
+.lightbox-nav{
+  position:absolute; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--ink); cursor:pointer;
+  font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+  width:3rem; height:3rem;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0.6; transition:opacity 0.25s var(--ease), transform 0.25s var(--ease);
+}
+.lightbox-nav:hover{ opacity:1; }
+.lightbox-prev{ left:clamp(0.4rem,3vw,1.6rem); }
+.lightbox-next{ right:clamp(0.4rem,3vw,1.6rem); }
+@media (max-width:640px){
+  .lightbox-nav{ width:2.4rem; height:2.4rem; font-size:1.1rem; }
+}
 </style>
 </head>
 <body>
@@ -610,11 +664,16 @@ body:not(.pl-done) #page{ opacity:0; }
 </footer>
 
 <!-- LIGHTBOX -->
-<div class="lightbox" id="lightbox">
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer" aria-hidden="true">
   <button class="lightbox-close" id="lbClose">CLOSE ✕</button>
+  <button class="lightbox-nav lightbox-prev" id="lbPrev" aria-label="Previous photo">←</button>
   <img id="lbImg" src="" alt="">
+  <button class="lightbox-nav lightbox-next" id="lbNext" aria-label="Next photo">→</button>
   <div class="lightbox-cap" id="lbCap"></div>
 </div>
+
+<!-- CUSTOM CURSOR — a grey blob that follows the pointer (desktop only) -->
+<div id="cursor-dot" aria-hidden="true"></div>
 
 </div><!-- /#page -->
 
@@ -634,6 +693,39 @@ body:not(.pl-done) #page{ opacity:0; }
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape') document.body.classList.remove('nav-open');
   });
+
+  /* ---------- custom cursor: a soft grey blob, ~0.5cm, that   ----------
+     trails the pointer with a little lag. Desktop/trackpad only —
+     touch devices are left completely alone. */
+  (function(){
+    var fine = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    if(!fine) return;
+    document.documentElement.classList.add('has-cursor');
+    var dot = document.getElementById('cursor-dot');
+    var x = -100, y = -100, dx = -100, dy = -100, started = false;
+
+    function tick(){
+      dx += (x - dx) * 0.22;
+      dy += (y - dy) * 0.22;
+      dot.style.left = dx + 'px';
+      dot.style.top = dy + 'px';
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    window.addEventListener('mousemove', function(e){
+      x = e.clientX; y = e.clientY;
+      if(!started){ dx = x; dy = y; started = true; }
+      dot.classList.add('show');
+      var el = e.target;
+      dot.classList.toggle('on-tile', !!(el.closest && el.closest('.tile')));
+      dot.classList.toggle('on-link', !!(el.closest && el.closest('a, button') && !el.closest('.tile')));
+    });
+    document.addEventListener('mousedown', function(){ dot.classList.add('down'); });
+    document.addEventListener('mouseup', function(){ dot.classList.remove('down'); });
+    document.addEventListener('mouseleave', function(){ dot.classList.remove('show'); });
+    document.addEventListener('mouseenter', function(){ dot.classList.add('show'); });
+  })();
 
   /* ---------- image loader with placeholder fallback ---------- */
   /* Preloads a src into the browser's image cache (a plain Image()
@@ -817,6 +909,8 @@ body:not(.pl-done) #page{ opacity:0; }
     var tile = document.createElement('div');
     tile.className = 'tile';
     tile.tabIndex = 0;
+    tile.setAttribute('role', 'button');
+    tile.setAttribute('aria-label', 'View photo lvens — ' + num);
     tile.innerHTML =
       '<div class="ph">' + String(i+1).padStart(2,'0') + '</div>' +
       '<img data-src="images/' + item.file + '" alt="lvens — ' + num + '" decoding="async" draggable="false">' +
@@ -825,7 +919,24 @@ body:not(.pl-done) #page{ opacity:0; }
     grid.appendChild(tile);
 
     var img = tile.querySelector('img');
-    tiles.push(tile);
+    /* Native lazy-loading: the browser only fetches each grid photo as it
+       nears the viewport, instead of every one of the 141 shots up front.
+       The blur-up transition still fires per image via its own load event,
+       so the page feels the same, it just doesn't wait on ~35MB to start. */
+    img.loading = i < 6 ? 'eager' : 'lazy';
+    img.addEventListener('load', function(){
+      img.classList.add('loaded');
+      var ph = tile.querySelector('.ph');
+      if(ph) ph.style.display = 'none';
+    });
+    img.addEventListener('error', function(){
+      var ph = tile.querySelector('.ph');
+      if(ph) ph.textContent = '—';
+      tile.classList.add('broken');
+    });
+    img.src = img.getAttribute('data-src');
+
+    tiles.push({ el: tile, img: img, num: num });
 
     /* custom "view" cue follows the cursor inside the tile */
     var cue = tile.querySelector('.view-cue');
@@ -835,29 +946,23 @@ body:not(.pl-done) #page{ opacity:0; }
       cue.style.top = (e.clientY - r.top) + 'px';
     });
 
-    function open(){
-      if(imgCache[img.getAttribute('data-src')] === false) return; /* broken file, nothing to show */
-      var full = img.getAttribute('data-src');
-      lbImg.src = full;
-      lbCap.textContent = 'lvens — ' + num;
-      lightbox.classList.add('on');
-    }
-    tile.addEventListener('click', open);
-    tile.addEventListener('keydown', function(e){ if(e.key === 'Enter') open(); });
+    function tryOpen(){ if(!tile.classList.contains('broken')) openAt(i); }
+    tile.addEventListener('click', tryOpen);
+    tile.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); tryOpen(); }
+    });
   });
 
-  /* ---------- preload everything up front, then reveal all at once ----------
-     This is the "keep loading until it's all ready" behaviour: the page
-     stays behind the preloader screen (with a live progress bar) until
-     the hero, the about portrait, and all 141 grid photos have finished
-     loading — so once you can scroll, nothing pops in or flickers. */
-  var allSources = [heroImg.getAttribute('data-src'), aboutImg.getAttribute('data-src')]
-    .concat(WORK.map(function(item){ return 'images/' + item.file; }));
+  /* ---------- preload the hero + about shot, then reveal the page ----------
+     Only these two critical images hold the preloader now — the 141 grid
+     photos lazy-load naturally as you scroll (see above), so the site is
+     interactive almost immediately instead of waiting on every photo. */
+  var criticalSources = [heroImg.getAttribute('data-src'), aboutImg.getAttribute('data-src')];
 
   var plFill = document.getElementById('plFill');
   var plPct = document.getElementById('plPct');
   var doneCount = 0;
-  var total = allSources.length;
+  var total = criticalSources.length;
 
   function bumpProgress(){
     doneCount++;
@@ -866,20 +971,20 @@ body:not(.pl-done) #page{ opacity:0; }
     if(plPct) plPct.textContent = 'Loading ' + pct + '%';
   }
 
-  Promise.all(allSources.map(function(src){
-    return preload(src).then(bumpProgress);
-  })).then(function(){
-    /* reveal hero + about */
+  function reveal(){
+    if(document.body.classList.contains('pl-done')) return;
     applyLoaded(heroImg, function(){ document.getElementById('heroMedia').classList.remove('ph'); });
     applyLoaded(aboutImg, function(){ aboutImg.closest('.about-media').querySelector('.ph').style.display='none'; });
-    /* reveal every grid tile — all already sitting in the image cache,
-       so this is a paint, not a fetch */
-    tiles.forEach(function(tile){
-      var img = tile.querySelector('img');
-      applyLoaded(img, function(){ tile.querySelector('.ph').style.display='none'; });
-    });
     document.body.classList.add('pl-done');
-  });
+  }
+
+  Promise.all(criticalSources.map(function(src){
+    return preload(src).then(bumpProgress);
+  })).then(reveal);
+
+  /* safety net: never let a slow/broken hero shot trap someone behind
+     the preloader indefinitely */
+  setTimeout(reveal, 4000);
 
   /* ---------- image save/right-click protection ---------- */
   /* Deters casual "save image as" / drag-out-to-desktop / long-press-save.
@@ -896,10 +1001,43 @@ body:not(.pl-done) #page{ opacity:0; }
   var lightbox = document.getElementById('lightbox');
   var lbImg = document.getElementById('lbImg');
   var lbCap = document.getElementById('lbCap');
-  function closeLb(){ lightbox.classList.remove('on'); lbImg.src=''; }
-  document.getElementById('lbClose').addEventListener('click', closeLb);
+  var lbClose = document.getElementById('lbClose');
+  var lbPrev = document.getElementById('lbPrev');
+  var lbNext = document.getElementById('lbNext');
+  var currentIndex = -1;
+  var lastFocused = null;
+
+  function openAt(i){
+    if(!tiles.length) return;
+    currentIndex = (i + tiles.length) % tiles.length;
+    var t = tiles[currentIndex];
+    var src = t.img.getAttribute('data-src');
+    lastFocused = document.activeElement;
+    lbImg.src = src;
+    lbCap.innerHTML = 'lvens — ' + t.num + '<span class="lb-count">' + (currentIndex + 1) + ' / ' + tiles.length + '</span>';
+    lightbox.classList.add('on');
+    lightbox.setAttribute('aria-hidden', 'false');
+    lbClose.focus();
+  }
+  function closeLb(){
+    lightbox.classList.remove('on');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lbImg.src = '';
+    if(lastFocused && lastFocused.focus) lastFocused.focus();
+  }
+  function prevLb(){ openAt(currentIndex - 1); }
+  function nextLb(){ openAt(currentIndex + 1); }
+
+  lbClose.addEventListener('click', closeLb);
+  lbPrev.addEventListener('click', prevLb);
+  lbNext.addEventListener('click', nextLb);
   lightbox.addEventListener('click', function(e){ if(e.target === lightbox) closeLb(); });
-  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeLb(); });
+  document.addEventListener('keydown', function(e){
+    if(!lightbox.classList.contains('on')) return;
+    if(e.key === 'Escape') closeLb();
+    else if(e.key === 'ArrowLeft') prevLb();
+    else if(e.key === 'ArrowRight') nextLb();
+  });
 
   /* ---------- reveal on scroll ---------- */
   var io = new IntersectionObserver(function(entries){
