@@ -178,11 +178,10 @@ img{
   background:none; border:none;
   display:flex; flex-direction:column; gap:6px;
   width:34px; padding:6px 0;
-  mix-blend-mode:normal; /* keep this clean/white regardless of what's behind it */
 }
 .menu-btn span{
-  display:block; height:2px; width:100%;
-  background:#ffffff;
+  display:block; height:1px; width:100%;
+  background:var(--ink);
   transition:transform 0.4s var(--ease), opacity 0.3s var(--ease);
 }
 .menu-btn .menu-label{
@@ -191,8 +190,6 @@ img{
   letter-spacing:0.18em;
   text-transform:uppercase;
   margin-top:2px;
-  color:#ffffff;
-  white-space:nowrap;
 }
 .nav-open .menu-btn span:nth-child(1){ transform:translateY(3.5px) rotate(45deg); }
 .nav-open .menu-btn span:nth-child(2){ transform:translateY(-3.5px) rotate(-45deg); }
@@ -354,7 +351,6 @@ section{ padding:clamp(4.5rem,10vw,7.5rem) clamp(1.5rem,5vw,3.5rem); }
   grid-template-columns:repeat(3,1fr);
   column-gap:clamp(1.6rem,3.2vw,3rem);
   grid-auto-rows:1px;
-  grid-auto-flow:row dense;
 }
 .tile{
   position:relative;
