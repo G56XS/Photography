@@ -258,4 +258,200 @@ footer{display:flex;align-items:center;justify-content:space-between;padding:1.8
 
   function sortPhotos(files){
     return files.sort(function(a,b){
-      return a.localeCompare(b, undefined, {numeric:true, sen
+            return a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'});
+    });
+  }
+
+  function makePhotoLabel(index){
+    return 'lvens — ' + String(index).padStart(3,'0');
+  }
+
+  var galleryItems = [];
+  var currentPhotoIndex = -1;
+
+  function createTile(file, index){
+    var number = index + 1;
+    var num = String(number).padStart(3,'0');
+    var label = makePhotoLabel(number);
+    var src = IMAGE_PREFIX + safeFileName(file);
+
+    var tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.tabIndex = 0;
+    tile.setAttribute('role','button');
+    tile.setAttribute('aria-label','View ' + label);
+
+    var ph = document.createElement('div');
+    ph.className = 'ph';
+    ph.textContent = num;
+
+    var img = document.createElement('img');
+    img.setAttribute('data-src', src);
+    img.alt = label;
+    img.decoding = 'async';
+    img.draggable = false;
+
+    var cap = document.createElement('div');
+    cap.className = 'cap';
+    cap.innerHTML = '<div class="title">' + label + '</div>';
+
+    tile.appendChild(ph);
+    tile.appendChild(img);
+    tile.appendChild(cap);
+    grid.appendChild(tile);
+
+    var item = {file:file, index:index, number:number, label:label, src:src, tile:tile, img:img};
+    galleryItems.push(item);
+
+    function open(){ openLightbox(index); }
+
+    tile.addEventListener('click', open);
+    tile.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); }
+    });
+
+    return item;
+  }
+
+  function openLightbox(index, updateHash){
+    if(!galleryItems.length) return;
+    if(index < 0) index = galleryItems.length - 1;
+    if(index >= galleryItems.length) index = 0;
+    var item = galleryItems[index];
+    if(imgCache[item.src] === false) return;
+
+    currentPhotoIndex = index;
+    lbImg.src = item.src;
+    lbImg.alt = item.label;
+    lbCap.textContent = item.label;
+    lightbox.classList.add('on');
+    document.body.style.overflow = 'hidden';
+
+    if(updateHash !== false){
+      history.replaceState(null, '', '#photo-' + String(item.number).padStart(3,'0'));
+    }
+  }
+
+  function openAdjacent(direction){
+    if(currentPhotoIndex < 0) return;
+    openLightbox(currentPhotoIndex + direction);
+  }
+
+  function closeLightbox(){
+    if(!lightbox.classList.contains('on')) return;
+    lightbox.classList.remove('on');
+    lbImg.removeAttribute('src');
+    document.body.style.overflow = '';
+    currentPhotoIndex = -1;
+    if(location.hash.indexOf('#photo-') === 0){
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
+
+  lbClose.addEventListener('click', closeLightbox);
+  document.getElementById('lbPrev').addEventListener('click', function(e){ e.stopPropagation(); openAdjacent(-1); });
+  document.getElementById('lbNext').addEventListener('click', function(e){ e.stopPropagation(); openAdjacent(1); });
+  lightbox.addEventListener('click', function(e){ if(e.target === lightbox) closeLightbox(); });
+
+  function revealOnScroll(){
+    var els = document.querySelectorAll('.reveal');
+    if(!('IntersectionObserver' in window)){
+      els.forEach(function(el){el.classList.add('in')});
+      return;
+    }
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){ if(entry.isIntersecting){ entry.target.classList.add('in'); observer.unobserve(entry.target); } });
+    }, {threshold:.08, rootMargin:'0px 0px -40px 0px'});
+    els.forEach(function(el){observer.observe(el)});
+  }
+
+  function loadFixedImages(){
+    return Promise.all([
+      preload('images/' + HERO_FILE).then(function(ok){
+        if(ok){ applyLoaded(heroImg); heroMedia.classList.remove('ph'); }
+      }),
+      preload('images/' + ABOUT_FILE).then(function(ok){
+        if(ok){ applyLoaded(aboutImg); aboutMedia.querySelector('.ph').style.display = 'none'; }
+      })
+    ]);
+  }
+
+  function setProgress(done,total){
+    var pct = total ? Math.round((done / total) * 100) : 100;
+    plFill.style.width = pct + '%';
+    plPct.textContent = 'Loading ' + pct + '%';
+  }
+
+  async function loadGallery(){
+    try{
+      setProgress(5,100);
+      var response = await fetch(REPO_API, {headers:{'Accept':'application/vnd.github+json'}});
+      if(!response.ok) throw new Error('GitHub returned HTTP ' + response.status);
+      var tree = await response.json();
+      if(tree.truncated) throw new Error('GitHub returned a truncated file tree.');
+
+      var photos = tree.tree
+        .filter(function(item){ return item.type === 'blob' && isPhotoPath(item.path); })
+        .map(function(item){ return item.path; })
+        .filter(function(path){
+          var file = safeFileName(path).toLowerCase();
+          return file !== HERO_FILE && file !== ABOUT_FILE;
+        });
+
+      photos = sortPhotos(photos);
+      photoStat.textContent = photos.length;
+      workCount.textContent = '01 — ' + String(photos.length).padStart(2,'0') + ' · Shot on POCO M6 Pro';
+
+      if(!photos.length){
+        grid.innerHTML = '<div class="gallery-error">No gallery images were found in /images.</div>';
+        gridStatus.textContent = '';
+        return;
+      }
+
+      galleryItems = [];
+      var tiles = photos.map(createTile);
+      var done = 0;
+      setProgress(10,100);
+
+      /* Load in small batches so a larger gallery does not hammer the browser. */
+      var batchSize = 8;
+      for(var i = 0; i < tiles.length; i += batchSize){
+        var batch = tiles.slice(i, i + batchSize);
+        await Promise.all(batch.map(function(item){
+          return preload(item.src).then(function(ok){
+            done += 1;
+            if(ok) applyLoaded(item.img);
+            setProgress(10 + Math.round((done / photos.length) * 88),100);
+          });
+        }));
+      }
+
+      gridStatus.textContent = photos.length + ' photographs · discovered automatically from /images · fully loaded';
+
+      var match = location.hash.match(/^#photo-(\d+)$/i);
+      if(match){
+        var target = parseInt(match[1], 10) - 1;
+        if(target >= 0 && target < galleryItems.length){
+          setTimeout(function(){ openLightbox(target, false); }, 120);
+        }
+      }
+    }catch(error){
+      console.error(error);
+      workCount.textContent = 'Gallery unavailable';
+      grid.innerHTML = '<div class="gallery-error">The gallery could not read the image list from GitHub.<br>Check your connection or GitHub API availability, then refresh the page.</div>';
+    }
+  }
+
+  async function init(){
+    revealOnScroll();
+    setProgress(0,100);
+    await Promise.all([loadFixedImages(), loadGallery()]);
+    setProgress(100,100);
+    setTimeout(function(){ document.body.classList.add('pl-done'); }, 180);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
