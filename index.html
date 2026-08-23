@@ -603,14 +603,9 @@ body:not(.pl-done) #page{ opacity:0; }
 
 <script>
 (function(){
-  /* Always start at the top of the page. Browsers remember both the
-     last scroll position (scroll restoration) and a #hash left over
-     from clicking a nav link, and will jump straight there on reload
-     -- which is why the page could load already scrolled down. */
   if('scrollRestoration' in history) history.scrollRestoration = 'manual';
   if(location.hash) history.replaceState(null, '', location.pathname + location.search);
   window.scrollTo(0, 0);
-
   document.getElementById('year').textContent = new Date().getFullYear();
 
   /* ---------- menu toggle ---------- */
@@ -626,35 +621,27 @@ body:not(.pl-done) #page{ opacity:0; }
     if(e.key === 'Escape') document.body.classList.remove('nav-open');
   });
 
-  /* ---------- image loader ---------- */
-  /* Grid images load lazily as they scroll near the viewport, instead of
-     preloading all ~140 of them up front. Preloading everything at once
-     was overwhelming the browser's connection pool, which silently
-     aborted some requests -- those tiles then stayed blank forever
-     (nothing in the code ever retried them) until some unrelated
-     event nudged the browser into refetching, which is why they only
-     seemed to "appear on hover". Loading on demand avoids that. */
-  function reveal(imgEl, onOk){
+  /* ---------- image loader with placeholder fallback ---------- */
+  /* Preloads a src into the browser's image cache (a plain Image()
+     object, not attached to the page), then hands the *already-cached*
+     src to the real <img>. Because it's cached, the assignment below
+     paints immediately — nothing pops in while you're scrolling. */
+  var imgCache = {};
+  function preload(src){
+    return new Promise(function(resolve){
+      if(!src || imgCache[src]){ resolve(); return; }
+      var test = new Image();
+      test.onload = function(){ imgCache[src] = true; resolve(); };
+      test.onerror = function(){ imgCache[src] = false; resolve(); }; /* don't block the page on one bad file */
+      test.src = src;
+    });
+  }
+  function applyLoaded(imgEl, onOk){
+    var src = imgEl.getAttribute('data-src');
+    if(!src || imgCache[src] === false) return;
+    imgEl.src = src;
     imgEl.classList.add('loaded');
     if(onOk) onOk();
-  }
-  function loadNow(imgEl, onOk){
-    var src = imgEl.getAttribute('data-src');
-    if(!src || imgEl.dataset.loading) return;
-    imgEl.dataset.loading = '1';
-    imgEl.addEventListener('load', function(){ reveal(imgEl, onOk); }, { once:true });
-    imgEl.addEventListener('error', function(){ /* leave the placeholder; don't block anything else */ }, { once:true });
-    imgEl.src = src;
-  }
-  function preloadEl(imgEl, onOk){
-    return new Promise(function(resolve){
-      var src = imgEl.getAttribute('data-src');
-      if(!src){ resolve(); return; }
-      imgEl.dataset.loading = '1';
-      imgEl.addEventListener('load', function(){ reveal(imgEl, onOk); resolve(); }, { once:true });
-      imgEl.addEventListener('error', function(){ resolve(); }, { once:true });
-      imgEl.src = src;
-    });
   }
 
   /* ---------- work data — every file from your Lvens folder ---------- */
@@ -829,6 +816,7 @@ body:not(.pl-done) #page{ opacity:0; }
     tiles.push(tile);
 
     function open(){
+      if(imgCache[img.getAttribute('data-src')] === false) return; /* broken file, nothing to show */
       var full = img.getAttribute('data-src');
       lbImg.src = full;
       lbCap.textContent = 'lvens — ' + num;
@@ -838,16 +826,19 @@ body:not(.pl-done) #page{ opacity:0; }
     tile.addEventListener('keydown', function(e){ if(e.key === 'Enter') open(); });
   });
 
-  /* ---------- preloader: only waits on hero + about now ----------
-     The full-page preloader used to block until all 141 grid photos had
-     finished loading (75MB+ up front). Now it only waits on the two
-     images that are visible immediately -- the hero and the about
-     portrait -- so the page appears quickly. Grid tiles fade in on
-     their own, lazily, as you scroll to them. */
+  /* ---------- preload everything up front, then reveal all at once ----------
+     This is the "keep loading until it's all ready" behaviour: the page
+     stays behind the preloader screen (with a live progress bar) until
+     the hero, the about portrait, and all 141 grid photos have finished
+     loading — so once you can scroll, nothing pops in or flickers. */
+  var allSources = [heroImg.getAttribute('data-src'), aboutImg.getAttribute('data-src')]
+    .concat(WORK.map(function(item){ return 'images/' + item.file; }));
+
   var plFill = document.getElementById('plFill');
   var plPct = document.getElementById('plPct');
   var doneCount = 0;
-  var total = 2;
+  var total = allSources.length;
+
   function bumpProgress(){
     doneCount++;
     var pct = Math.round((doneCount / total) * 100);
@@ -855,25 +846,20 @@ body:not(.pl-done) #page{ opacity:0; }
     if(plPct) plPct.textContent = 'Loading ' + pct + '%';
   }
 
-  Promise.all([
-    preloadEl(heroImg, function(){ document.getElementById('heroMedia').classList.remove('ph'); }).then(bumpProgress),
-    preloadEl(aboutImg, function(){ aboutImg.closest('.about-media').querySelector('.ph').style.display='none'; }).then(bumpProgress)
-  ]).then(function(){
+  Promise.all(allSources.map(function(src){
+    return preload(src).then(bumpProgress);
+  })).then(function(){
+    /* reveal hero + about */
+    applyLoaded(heroImg, function(){ document.getElementById('heroMedia').classList.remove('ph'); });
+    applyLoaded(aboutImg, function(){ aboutImg.closest('.about-media').querySelector('.ph').style.display='none'; });
+    /* reveal every grid tile — all already sitting in the image cache,
+       so this is a paint, not a fetch */
+    tiles.forEach(function(tile){
+      var img = tile.querySelector('img');
+      applyLoaded(img, function(){ tile.querySelector('.ph').style.display='none'; });
+    });
     document.body.classList.add('pl-done');
   });
-
-  /* ---------- lazy-load grid tiles as they near the viewport ---------- */
-  var tileIO = new IntersectionObserver(function(entries){
-    entries.forEach(function(en){
-      if(en.isIntersecting){
-        var tile = en.target;
-        var img = tile.querySelector('img');
-        loadNow(img, function(){ tile.querySelector('.ph').style.display = 'none'; });
-        tileIO.unobserve(tile);
-      }
-    });
-  }, { rootMargin: '600px 0px', threshold: 0.01 });
-  tiles.forEach(function(tile){ tileIO.observe(tile); });
 
   /* ---------- image save/right-click protection ---------- */
   /* Deters casual "save image as" / drag-out-to-desktop / long-press-save.
