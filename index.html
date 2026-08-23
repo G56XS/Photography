@@ -567,7 +567,7 @@ body:not(.pl-done) #page{ opacity:0; }
       <p>Still improving — next up is getting an actual camera and working on my editing, both need work. Short term I want to travel more and shoot in Europe, Australia, and New Zealand.</p>
       <div class="stat-row">
         <div class="stat"><b>1</b><span>Year shooting</span></div>
-        <div class="stat"><b>141</b><span>Photos shared</span></div>
+        <div class="stat"><b id="photoCount">141</b><span>Photos shared</span></div>
         <div class="stat"><b>∞</b><span>Still learning</span></div>
       </div>
     </div>
@@ -791,6 +791,8 @@ body:not(.pl-done) #page{ opacity:0; }
   var grid = document.getElementById('workGrid');
   var workCount = document.getElementById('workCount');
   if (workCount) workCount.textContent = '01 — ' + String(WORK.length).padStart(2, '0') + ' · Shot on phone';
+  var photoCount = document.getElementById('photoCount');
+  if (photoCount) photoCount.textContent = WORK.length;
 
   var heroImg = document.getElementById('heroImg');
   var aboutImg = document.querySelector('.about-media img');
@@ -888,10 +890,7 @@ body:not(.pl-done) #page{ opacity:0; }
      it just keeps playing. Drop mp3 files into a "music" folder next to
      this file and list their names here (add as many as you want). */
   var MUSIC_TRACKS = [
-    'music/dreamscape-01.mp3',
-    'music/dreamscape-02.mp3',
-    'music/dreamscape-03.mp3',
-    'music/dreamscape-04.mp3'
+
   ];
 
   (function initMusic(){
