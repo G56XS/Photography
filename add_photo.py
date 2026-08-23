@@ -195,7 +195,8 @@ def sync_with_remote():
     rebase_dirs = [ROOT / ".git" / "rebase-merge", ROOT / ".git" / "rebase-apply"]
     if any(d.exists() for d in rebase_dirs):
         print("  (found a leftover rebase from an earlier run -- aborting it first)")
-        subprocess.run(["git", "rebase", "--abort"], cwd=ROOT)
+        subprocess.run(["git", "rebase", "--abort"], cwd=ROOT,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         # Belt-and-suspenders: if --abort itself couldn't fully clean up
         # (e.g. the rebase was already broken), remove the directories directly.
         for d in rebase_dirs:
@@ -208,11 +209,12 @@ def sync_with_remote():
     if not branch:
         return  # shouldn't happen right after ensure_on_branch, but don't block on it
 
-    print("  $ git fetch origin")
-    fetch = subprocess.run(["git", "fetch", "origin"], cwd=ROOT)
+    # Quiet fetch -- this runs every time, but stays invisible unless it
+    # actually finds something for us to deal with below.
+    fetch = subprocess.run(["git", "fetch", "origin"], cwd=ROOT,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if fetch.returncode != 0:
-        print("  (couldn't fetch -- continuing offline, push at the end may fail)")
-        return
+        return  # offline or no network -- just proceed normally, push at the end will fail loudly if it matters
 
     remote_ref = f"origin/{branch}"
     has_remote = subprocess.run(
